@@ -9,20 +9,36 @@ export async function POST(request: Request) {
   try {
     const credentials = await request.json();
 
-    const query = `SELECT * FROM users WHERE user_name = '${credentials.username}' AND pass = '${credentials.password}'`;
-    const result = await executeQuery(query);
+    // Prevent malformed payloads by checking types explicitly
+    if (
+      typeof credentials?.username !== 'string' ||
+      typeof credentials?.password !== 'string'
+    ) {
+      return NextResponse.json(
+        { error: 'Requête invalide' },
+        { status: 400 }
+      );
+    }
+
+    const { username, password } = credentials;
     
+    // Prevent SQL injection by using parameterized query
+    const result = await executeQuery(
+      'SELECT * FROM users WHERE username = $1 AND password = $2',
+      [username, password]
+    );
+
     if (result.rows.length > 0) {
       const user = result.rows[0];
 
       const token = jwt.sign({ userId: user.id, username: user.username }, JWT_SECRET);
-      
+
+      // Return token and user info (Password is deliberately excluded for security reasons)
       return NextResponse.json({
         token,
         user: {
           id: user.id,
-          username: user.username,
-          password: user.password
+          username: user.username
         }
       });
     } else {
